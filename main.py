@@ -6,9 +6,8 @@ from rich.table import Table
 import oracle
 import phantom
 import counselor
-import briefing
 import verifier
-
+import briefing
 
 os.environ["ANTHROPIC_API_KEY"] = "your_api_key_here"
 
@@ -32,9 +31,9 @@ def pick_user_type() -> str | None:
 
     console.print("\n[dim]Who are you? (helps PHANTOM tailor its explanation)[/dim]")
     table = Table(show_header=True, header_style="dim", box=None)
-    table.add_column("Key",      style="cyan",   width=12)
-    table.add_column("Type",     style="white",  width=22)
-    table.add_column("Focus",    style="dim")
+    table.add_column("Key",   style="cyan",  width=12)
+    table.add_column("Type",  style="white", width=22)
+    table.add_column("Type",  style="dim")
     for key, profile in zip(types, profiles):
         table.add_row(key, profile["label"], profile["focus"])
     console.print(table)
@@ -64,33 +63,26 @@ def run():
         return
 
     user_type = pick_user_type()
-    console.print("[bright_yellow]🔍  VERIFIER checking document authenticity & completeness...[/bright_yellow]")
 
+    # ── VERIFIER ──────────────────────────────────────────────────────────────
+    console.print("\n[bright_yellow]🔍  VERIFIER checking document authenticity & completeness...[/bright_yellow]")
     try:
         verifier_data = verifier.verify_from_text(document)
     except Exception as e:
-        console.print(f"[yellow]VERIFIER WARNING: {e} — skipping verification, proceeding with analysis.[/yellow]")
+        console.print(f"[yellow]VERIFIER WARNING: {e} — skipping.[/yellow]")
         verifier_data = {"trust_verdict": "UNVERIFIABLE", "proceed_with_analysis": True}
 
     briefing.print_verifier(verifier_data)
 
-    # Block the pipeline if forgery is detected
     if verifier.should_block_analysis(verifier_data):
-        console.print(
-            "[red bold]⛔  VERIFIER detected document forgery. "
-            "Analysis blocked. Verify this document manually before proceeding.[/red bold]"
-        )
-        return   # exits run()
+        console.print("[red bold]⛔  VERIFIER detected document forgery. Analysis blocked.[/red bold]")
+        return
 
-    # If SUSPICIOUS — warn but continue
     if verifier_data.get("trust_verdict") == "SUSPICIOUS":
-        console.print(
-            "[yellow]⚠  VERIFIER flagged this document as SUSPICIOUS. "
-            "Proceeding with analysis — but review red flags before signing.[/yellow]\n"
-        )
+        console.print("[yellow]⚠  Document flagged SUSPICIOUS. Proceeding — review red flags before signing.[/yellow]\n")
 
-    # ── ORACLE ───────────────────────────────────────────────────────────────
-    console.print("\n[bright_magenta]🔮  ORACLE scanning document for risks...[/bright_magenta]")
+    # ── ORACLE ────────────────────────────────────────────────────────────────
+    console.print("[bright_magenta]🔮  ORACLE extracting contract data...[/bright_magenta]")
     try:
         oracle_data = oracle.analyze(document)
     except Exception as e:
@@ -98,7 +90,7 @@ def run():
         return
     briefing.print_oracle(oracle_data)
 
-    # ── PHANTOM ──────────────────────────────────────────────────────────────
+    # ── PHANTOM ───────────────────────────────────────────────────────────────
     mode_label = f"personal → [cyan]{user_type}[/cyan]" if user_type else "generic"
     console.print(f"[cyan]👻  PHANTOM generating explanation & decision report ({mode_label})...[/cyan]")
     try:
